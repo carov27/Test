@@ -238,7 +238,7 @@ speechSynthesis.onvoiceschanged=voices;voices();
 $("#vz").onchange=e=>{S.voice=e.target.value;save()};
 $("#rt").value=S.rate||1;$("#rt").oninput=e=>{S.rate=+e.target.value;save()};
 $("#vt").onclick=()=>say("Pregunta uno. ¿Cuáles son las dos principales causas de pancreatitis aguda?");
-const GD={0:"A",1:"B",2:"C",3:"D",4:"R",5:"S",9:"P"},gp={},CN=["A","B","X","Y"];let GM=S.gm||GD,cal=-1,cm={};
+const GD={1:"A",0:"B",3:"C",2:"D",4:"R",5:"S",9:"P"},gp={},CN=["A","B","X","Y"];let GM=S.gm||GD,cal=-1,cm={};
 $("#gc").onclick=()=>{cal=0;cm={};$("#gt").textContent="Presiona el botón "+CN[0]+" del mando…"};
 setInterval(()=>{const ps=navigator.getGamepads?navigator.getGamepads():[];
  for(const p of ps){if(!p)continue;p.buttons.forEach((b,k)=>{const key=p.index+"-"+k;
