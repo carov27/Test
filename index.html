@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-title" content="Examen por voz">
+<link rel="manifest" href="manifest.webmanifest"><title>Examen por voz</title>
+<style>
+:root{--bg:#f1f5f3;--card:#fff;--ink:#14302c;--mut:#587570;--acc:#0f766e;--onacc:#fff;--ok:#1f7a45;--bad:#b3402f;--line:#cfdcd8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1b19;--card:#16282a;--ink:#e3f0ed;--mut:#8fb0aa;--acc:#3fb8aa;--onacc:#06201d;--ok:#52c27d;--bad:#ef8a78;--line:#2b4440}}
+:root[data-theme="dark"]{--bg:#0e1b19;--card:#16282a;--ink:#e3f0ed;--mut:#8fb0aa;--acc:#3fb8aa;--onacc:#06201d;--ok:#52c27d;--bad:#ef8a78;--line:#2b4440}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.45 system-ui,-apple-system,sans-serif}
+main{max-width:640px;margin:0 auto;padding:18px 16px 40px}
+h1{font:700 2rem/1.1 Georgia,serif;margin:8px 0 6px}
+.mut{color:var(--mut)}
+button,input,textarea{font:inherit;color:inherit}
+button{background:var(--acc);color:var(--onacc);border:0;border-radius:10px;padding:11px 16px;font-weight:600}
+button.sm,.del{background:transparent;color:var(--mut);border:1px solid var(--line)}
+.deck{display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
+.deck div{flex:1;min-width:0}.deck b{display:block}.deck span{color:var(--mut);font-size:.9rem}
+.chk{display:block;margin:14px 0}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px}
+summary{font-weight:600}
+input[type=text],textarea{width:100%;box-sizing:border-box;margin:10px 0;padding:10px;background:var(--bg);border:1px solid var(--line);border-radius:10px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.q{font:1.4rem/1.35 Georgia,serif;margin:18px 0}
+.opt{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:12px;padding:14px;margin:9px 0;font-weight:500}
+.opt.ok{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 18%,var(--card))}
+.opt.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 18%,var(--card))}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#st{min-height:1.5em;margin-top:14px}
+</style></head><body>
+<main id="home">
+<h1>Examen por voz</h1>
+<p class="mut">Te lee cada pregunta con sus opciones y tú contestas diciendo a, b, c o d.</p>
+<div id="decks"></div>
+<label class="chk"><input type="checkbox" id="shuf" checked> Mezclar el orden de las preguntas</label>
+<details><summary>Agregar un mazo</summary>
+<input type="text" id="nm" placeholder="Nombre del mazo">
+<textarea id="tx" rows="8" placeholder="Pega aquí tus preguntas: 1. Pregunta A) … B) … C) … D) … (Correcta)"></textarea>
+<input type="file" id="fl" accept=".txt,text/plain">
+<p><button id="sv">Guardar mazo</button></p><p id="msg" class="mut"></p>
+</details>
+</main>
+<main id="quiz" hidden>
+<div class="top"><span id="pr" class="mut"></span><button id="ex" class="sm">Salir</button></div>
+<p id="qt" class="q"></p><div id="ops"></div><p id="st" class="mut" role="status"></p><p id="dbg" class="mut"></p>
+<div class="row"><button id="rp">Repetir</button><button id="sk">Siguiente</button><button id="pz">Pausa</button></div>
+</main>
+<script>
+const DEF=[
+["¿Cuáles son las dos principales causas de pancreatitis aguda?",["Hipercalcemia e hipertrigliceridemia.","Litiasis biliar y consumo excesivo de alcohol.","Traumatismos e infecciones.","Medicamentos y enfermedades autoinmunes."],1],
+["¿Cuál es el tipo histológico más frecuente de cáncer de páncreas?",["Insulinoma.","Adenocarcinoma acinar.","Adenocarcinoma ductal.","Carcinoma escamoso."],2],
+["Un paciente presenta dolor epigástrico intenso irradiado hacia la espalda y lipasa sérica cinco veces por encima del límite superior de la normalidad. Si presenta una evolución favorable, ¿cuál es la conducta más apropiada?",["Realizar una TAC contrastada de manera obligatoria.","Solicitar una CPRE de urgencia.","Descartar pancreatitis hasta obtener estudios de imagen.","Establecer el diagnóstico sin necesidad de TAC de rutina y solicitar ultrasonido para investigar la etiología biliar."],3],
+["¿Cuál es la principal alteración histopatológica de la pancreatitis crónica?",["Fibrosis y destrucción progresiva e irreversible del tejido pancreático.","Edema pancreático completamente reversible.","Hipertrofia de los islotes de Langerhans.","Inflamación limitada a la vía biliar."],0],
+["¿Qué tipo de diarrea persiste a pesar del ayuno?",["Osmótica.","Secretora.","Por intolerancia a la lactosa.","Por consumo excesivo de sorbitol."],1],
+["Según la clasificación de Atlanta revisada, un paciente con pancreatitis aguda que presenta falla orgánica persistente durante más de 48 horas se clasifica como:",["Pancreatitis aguda leve.","Pancreatitis aguda moderadamente grave.","Pancreatitis aguda grave.","Pancreatitis aguda recurrente."],2],
+["¿Cuál de los siguientes genes presenta una mutación activadora frecuente en el adenocarcinoma ductal pancreático?",["CFTR.","SPINK1.","MEN1.","KRAS."],3],
+["Un paciente con antecedente de pancreatitis crónica presenta evacuaciones grasosas, fétidas, pérdida de peso y una concentración de elastasa fecal de 80 µg/g. ¿Cuál es el diagnóstico más probable?",["Insuficiencia pancreática exocrina grave.","Síndrome de intestino irritable.","Colitis ulcerosa.","Insuficiencia pancreática endocrina aislada."],0],
+["¿Cuál de los siguientes parámetros forma parte de la escala BISAP para pancreatitis aguda?",["Lipasa sérica mayor de 1,000 U/L.","BUN mayor de 25 mg/dL.","Edad mayor de 40 años.","Bilirrubina total mayor de 2 mg/dL."],1],
+["¿A partir de qué duración se considera crónica una diarrea?",["Más de 48 horas.","Más de 7 días.","Más de 2 semanas.","Más de 4 semanas."],3],
+["¿Cuál es el tratamiento de elección para la insuficiencia pancreática exocrina secundaria a pancreatitis crónica?",["Antibióticos de amplio espectro.","Corticoides sistémicos.","Tratamiento sustitutivo con enzimas pancreáticas.","Ayuno prolongado y restricción absoluta de grasas."],2],
+["Un paciente con pancreatitis aguda de origen biliar presenta fiebre, ictericia y datos compatibles con colangitis. ¿Cuál es la intervención más apropiada?",["CPRE urgente.","Colecistectomía electiva como única medida inicial.","Tratamiento exclusivo con analgésicos.","Vigilancia sin intervención de la vía biliar."],0],
+["Un paciente presenta diarrea acuosa abundante, hipopotasemia y aclorhidria. ¿Cuál de los siguientes tumores neuroendocrinos pancreáticos se relaciona con este cuadro clínico?",["Insulinoma.","Glucagonoma.","Gastrinoma.","VIPoma."],3],
+["¿Cuál de los siguientes estudios permite identificar mejor las calcificaciones pancreáticas gruesas en pacientes con pancreatitis crónica?",["Radiografía simple de tórax.","Tomografía computarizada de abdomen.","Manometría esofágica.","Colonoscopia."],1],
+["¿Qué porcentaje aproximado de la función secretora pancreática exocrina debe perderse para que aparezca esteatorrea manifiesta por insuficiencia pancreática?",["25 %.","50 %.","Más del 90 %.","10 %."],2]];
+const $=s=>document.querySelector(s);
+let S={decks:[]};
+function save(){try{localStorage.setItem("vq",JSON.stringify(S))}catch(e){}}
+try{const x=JSON.parse(localStorage.getItem("vq"));if(x&&x.decks)S=x}catch(e){}
+if(!S.decks.length&&!S.seeded){S.decks.push({name:"Gastroenterología: páncreas y diarrea crónica",qs:DEF});S.seeded=1;save()}
+
+function home(){
+ $("#quiz").hidden=true;$("#home").hidden=false;const l=$("#decks");l.innerHTML="";
+ S.decks.forEach(d=>{const r=document.createElement("div");r.className="deck";
+  r.innerHTML="<div><b></b><span></span></div><button class='go'>Empezar</button><button class='del'>Borrar</button>";
+  r.querySelector("b").textContent=d.name;r.querySelector("span").textContent=d.qs.length+" preguntas";
+  r.querySelector(".go").onclick=()=>start(d);
+  const b=r.querySelector(".del");b.onclick=()=>{if(b.dataset.s){S.decks=S.decks.filter(x=>x!==d);save();home()}else{b.dataset.s=1;b.textContent="¿Seguro?"}};
+  l.append(r)});
+ if(!S.decks.length)l.innerHTML="<p class='mut'>Aún no tienes mazos. Agrega uno abajo.</p>";
+}
+function blk(b){
+ let c=-1;const r=/Respuesta correcta:?\s*([A-D])/i.exec(b);
+ if(r){c="ABCD".indexOf(r[1].toUpperCase());b=b.replace(r[0],"")}
+ const p=b.split(/\s*\b([A-D])\)\s*/);if(p.length<9)return null;
+ const o=[];for(let k=1;k<9;k+=2){let x=p[k+1].trim();if(/\(Correcta\)/i.test(x)){c=k>>1;x=x.replace(/\s*\(Correcta\)/i,"").trim()}o.push(x)}
+ return c<0?null:[p[0].trim(),o,c];
+}
+function parse(t){
+ t=" "+t.replace(/\*/g,"").replace(/\s+/g," ").replace(/\s-\s(?=[A-D]\))/g," ");
+ const qs=[];let pos=0;
+ for(let n=1;;n++){
+  const m=new RegExp("\\s"+n+"\\.\\s").exec(t.slice(pos));if(!m)break;
+  const st=pos+m.index+m[0].length;
+  const m2=new RegExp("\\s"+(n+1)+"\\.\\s").exec(t.slice(st));
+  const en=m2?st+m2.index:t.length;
+  const q=blk(t.slice(st,en));if(q)qs.push(q);pos=en;
+ }
+ return qs;
+}
+$("#fl").onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(x=>{$("#tx").value=x;if(!$("#nm").value)$("#nm").value=f.name.replace(/\.\w+$/,"")})};
+$("#sv").onclick=()=>{
+ const qs=parse($("#tx").value),m=$("#msg");
+ if(!qs.length){m.textContent="No encontré preguntas. Cada una debe empezar con su número y tener las opciones A), B), C) y D) con la correcta marcada.";return}
+ S.decks.push({name:$("#nm").value.trim()||"Mazo nuevo",qs});save();
+ $("#tx").value="";$("#nm").value="";m.textContent="Mazo guardado con "+qs.length+" preguntas.";home();
+};
+
+let Q=[],i=0,sc=0,run=false,tap=null,rec=null,sp=false,tok=0;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function say(t){return new Promise(r=>{
+ speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang="es-MX";
+ const vs=speechSynthesis.getVoices(),v=vs.find(v=>/^es[-_]MX/.test(v.lang))||vs.find(v=>/^es/.test(v.lang));
+ if(v)u.voice=v;u.onend=u.onerror=()=>r();speechSynthesis.speak(u)})}
+const dbg=t=>$("#dbg").textContent=t;
+function stopHear(){try{rec&&rec.abort()}catch(e){}}
+function startRec(){
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SR){dbg("Este navegador no tiene reconocimiento de voz. Usa los botones en pantalla.");return}
+ if(rec)return;const r=new SR();rec=r;r.lang="es-MX";r.continuous=true;r.interimResults=true;r.maxAlternatives=3;
+ r.onresult=e=>{const x=e.results[e.results.length-1];onHeard([...x].map(a=>a.transcript))};
+ r.onerror=e=>{if(e.error==="no-speech"||e.error==="aborted")return;dbg("Micrófono: "+e.error+(/not-allowed/.test(e.error)?". Permite el micrófono y el dictado para Safari en Ajustes.":""))};
+ r.onend=()=>{rec=null;if(run)setTimeout(startRec,300)};
+ try{r.start();dbg("Micrófono activado.")}catch(e){rec=null;dbg("Micrófono: "+e.message)}}
+function onHeard(a){
+ const r=intent(a);if(!r||!tap)return;
+ if(sp&&a[0].trim().split(/\s+/).length>2)return;
+ tap(r)}
+function ask(text){return new Promise(res=>{
+ let done=false,tm;
+ const fin=v=>{if(!done){done=true;clearTimeout(tm);tap=null;sp=false;speechSynthesis.cancel();res(v)}};
+ tap=fin;sp=true;
+ say(text).then(()=>{sp=false;if(!done)tm=setTimeout(()=>fin(null),9000)})})}
+function tapper(x){if(tap)tap(x)}
+function intent(a){
+ for(let t of a){
+  t=t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f.,¿?¡!]/g,"").trim();
+  if(/repet|otra vez/.test(t))return "R";if(/siguiente|salta|pasa/.test(t))return "S";if(/pausa|detente|alto/.test(t))return "P";
+  const w=t.replace(/opcion|inciso|letra|respuesta/g,"").trim().split(/\s+/);
+  if(w.length<=2){const m={a:"A",ah:"A",ha:"A",b:"B",be:"B",ve:"B",v:"B",c:"C",ce:"C",se:"C",d:"D",de:"D"};for(const x of w)if(m[x])return m[x]}
+ }return null}
+const L="ABCD";
+function show(){
+ const [q,o]=Q[i];$("#pr").textContent="Pregunta "+(i+1)+" de "+Q.length+" · Aciertos: "+sc;$("#qt").textContent=q;
+ const b=$("#ops");b.innerHTML="";
+ o.forEach((x,k)=>{const e=document.createElement("button");e.className="opt";e.textContent=L[k]+") "+x;e.onclick=()=>tapper(L[k]);b.append(e)});
+}
+function mark(c,a){[...$("#ops").children].forEach((e,k)=>{if(k===c)e.classList.add("ok");else if(L[k]===a)e.classList.add("bad")})}
+const st=t=>$("#st").textContent=t;
+function pause(){run=false;tok++;speechSynthesis.cancel();stopHear();$("#pz").textContent="Continuar";st("En pausa.")}
+async function go(){
+ const my=++tok;run=true;startRec();$("#pz").textContent="Pausa";
+ const alive=()=>run&&my===tok;
+ while(alive()&&i<Q.length){
+  const [q,o,c]=Q[i];show();
+  const read=()=>"Pregunta "+(i+1)+". "+q+" "+o.map((x,k)=>L[k]+": "+x+".").join(" ");
+  let ans=null,t=0,txt=read();
+  while(alive()&&!ans&&t<3){
+   st("Leyendo y escuchando… di a, b, c o d");const r=await ask(txt);if(!alive())return;
+   if(r&&r.length===1&&L.includes(r))ans=r;
+   else if(r==="R")txt=read();
+   else if(r==="S")ans="S";
+   else if(r==="P"){pause();return}
+   else{t++;txt="No te escuché. Di a, b, c o d."}
+  }
+  if(!alive())return;
+  if(ans==="S"){}
+  else if(ans){const ok=L.indexOf(ans)===c;if(ok)sc++;mark(c,ans);
+   await say(ok?"Correcto.":"Incorrecto. La respuesta era "+L[c]+": "+o[c]+".")}
+  else{mark(c,"");await say("La respuesta era "+L[c]+": "+o[c]+".")}
+  if(!alive())return;
+  i++;await sleep(500);
+ }
+ if(alive()){run=false;stopHear();const m="Terminaste. Acertaste "+sc+" de "+Q.length+".";
+  $("#qt").textContent=m;$("#ops").innerHTML="";$("#pr").textContent="";st("");$("#pz").textContent="Repetir mazo";await say(m)}
+}
+function start(d){
+ Q=[...d.qs];if($("#shuf").checked)Q.sort(()=>Math.random()-.5);i=0;sc=0;
+ $("#home").hidden=true;$("#quiz").hidden=false;
+ try{navigator.wakeLock&&navigator.wakeLock.request("screen")}catch(e){}
+ go();
+}
+$("#rp").onclick=()=>tapper("R");$("#sk").onclick=()=>tapper("S");
+$("#pz").onclick=()=>{if(run)pause();else{if(i>=Q.length){i=0;sc=0;Q.sort(()=>Math.random()-.5)}go()}};
+$("#ex").onclick=()=>{pause();home()};
+home();
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script></body></html>
