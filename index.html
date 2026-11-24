@@ -28,11 +28,14 @@ input[type=text],textarea{width:100%;box-sizing:border-box;margin:10px 0;padding
 .opt.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 18%,var(--card))}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 #st{min-height:1.5em;margin-top:14px}
+.deck{flex-wrap:wrap}
+.ec{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
+.ec textarea{margin:8px 0}.er{display:flex;gap:8px;align-items:center;margin:6px 0}.er input[type=text]{margin:0;flex:1}
 </style></head><body>
 <main id="home">
 <h1>Examen por voz</h1>
 <p class="mut">Te lee cada pregunta con sus opciones y tú contestas diciendo a, b, c o d.</p>
-<div id="decks"></div>
+<div id="decks"></div><p id="hm" class="mut"></p>
 <label class="chk"><input type="checkbox" id="shuf" checked> Mezclar el orden de las preguntas</label>
 <label class="chk"><input type="checkbox" id="strict" checked> Exigir la palabra «respuesta» antes de la letra (recomendado si va más gente contigo)</label>
 <label class="chk"><input type="checkbox" id="rep"> Modo repaso, sin calificar ni micrófono (funciona sin internet): lee la pregunta, espera <input type="number" id="sec" value="8" min="3" max="30" style="width:3.5em"> segundos y te dice la respuesta</label>
@@ -46,12 +49,18 @@ input[type=text],textarea{width:100%;box-sizing:border-box;margin:10px 0;padding
 <input type="file" id="fl" accept=".txt,text/plain">
 <p><button id="sv">Guardar mazo</button></p><p id="msg" class="mut"></p>
 </details>
-<p class="mut" style="font-size:.8rem">Versión 10</p>
+<p class="mut" style="font-size:.8rem">Versión 11</p>
 </main>
 <main id="quiz" hidden>
 <div class="top"><span id="pr" class="mut"></span><button id="ex" class="sm">Salir</button></div>
 <p id="qt" class="q"></p><div id="ops"></div><p id="sx" class="mut"></p><p id="st" class="mut" role="status"></p><p id="dbg" class="mut"></p>
 <div class="row"><button id="rp">Repetir</button><button id="sk">Siguiente</button><button id="pz">Pausa</button></div>
+</main>
+<main id="ed" hidden>
+<div class="top"><b>Editar mazo</b><button id="eok">Listo</button></div>
+<input type="text" id="en" placeholder="Nombre del mazo">
+<div id="el"></div>
+<p><button id="ea" class="sm">+ Agregar pregunta</button></p>
 </main>
 <audio id="sil" loop playsinline></audio>
 <script>
@@ -85,29 +94,29 @@ if(!S.decks.length&&!S.seeded){S.decks.push({name:"Gastroenterología: páncreas
 function home(){
  $("#quiz").hidden=true;$("#home").hidden=false;const l=$("#decks");l.innerHTML="";
  S.decks.forEach(d=>{const r=document.createElement("div");r.className="deck";
-  r.innerHTML="<div><b></b><span></span></div><button class='go'>Empezar</button><button class='del'>Borrar</button>";
-  r.querySelector("b").textContent=d.name;r.querySelector("span").textContent=d.qs.length+" preguntas";
-  r.querySelector(".go").onclick=()=>start(d);
+  r.innerHTML="<div><b></b><span></span></div><button class='go'>Empezar</button><button class='sm ed'>Editar</button><button class='del'>Borrar</button>";
+  r.querySelector("b").textContent=d.name;{const nb=d.qs.filter(bad).length;r.querySelector("span").textContent=d.qs.length+" preguntas"+(nb?" · "+nb+" por revisar":"")}
+  r.querySelector(".go").onclick=()=>start(d);r.querySelector(".ed").onclick=()=>edit(d);
   const b=r.querySelector(".del");b.onclick=()=>{if(b.dataset.s){S.decks=S.decks.filter(x=>x!==d);save();home()}else{b.dataset.s=1;b.textContent="¿Seguro?"}};
   l.append(r)});
  if(!S.decks.length)l.innerHTML="<p class='mut'>Aún no tienes mazos. Agrega uno abajo.</p>";
 }
 function blk(b){
- let c=-1,sus="";const e=/\s(?:Sustento|Justificaci[oó]n|Explicaci[oó]n):\s*(.*)$/i.exec(b);if(e){sus=e[1].trim();b=b.slice(0,e.index)}const r=/Respuesta correcta:?\s*([A-D])/i.exec(b);
+ let c=-1,sus="";const e=/\s(?:Sustento|Justificaci[oó]n|Explicaci[oó]n):\s*(.*)$/i.exec(b);if(e){sus=e[1].trim();b=b.slice(0,e.index)}
+ const r=/Respuesta correcta:?\s*([A-D])/i.exec(b);
  if(r){c="ABCD".indexOf(r[1].toUpperCase());b=b.replace(r[0],"")}
- const p=b.split(/\s*\b([A-D])\)\s*/);if(p.length<9)return null;
- const o=[];for(let k=1;k<9;k+=2){let x=p[k+1].trim();if(/\(Correcta\)/i.test(x)){c=k>>1;x=x.replace(/\s*\(Correcta\)/i,"").trim()}o.push(x)}
- return c<0?null:[p[0].trim(),o,c,sus];
-}
+ const p=b.split(/\s*\b([A-D])\)\s*/),o=["","","",""];
+ for(let k=1;k+1<p.length;k+=2){const j="ABCD".indexOf(p[k]);if(j<0)continue;let x=p[k+1].trim();if(/\(Correcta\)/i.test(x)){c=j;x=x.replace(/\s*\(Correcta\)/i,"").trim()}o[j]=x}
+ return [p[0].trim(),o,c,sus]}
 function parse(t){
- t=" "+t.replace(/\*/g,"").replace(/\s+/g," ").replace(/\s-\s(?=[A-D]\))/g," ");
+ t=" "+t.replace(/\*/g,"").replace(/[A-Za-zÁ-úÑñ]+\s*\|\s*(\d)(?=\d{1,2}\.)/g," ").replace(/[A-Za-zÁ-úÑñ]+\s*\|\s*\d{1,2}(?=\s)/g," ").replace(/\s+/g," ").replace(/\s-\s(?=[A-D]\))/g," ");
  const qs=[];let pos=0;
  for(let n=1;;n++){
   const m=new RegExp("\\s"+n+"\\.\\s").exec(t.slice(pos));if(!m)break;
   const st=pos+m.index+m[0].length;
   const m2=new RegExp("\\s"+(n+1)+"\\.\\s").exec(t.slice(st));
   const en=m2?st+m2.index:t.length;
-  const q=blk(t.slice(st,en));if(q)qs.push(q);pos=en;
+  qs.push(blk(t.slice(st,en)));pos=en;
  }
  return qs;
 }
@@ -116,7 +125,7 @@ $("#sv").onclick=()=>{
  const qs=parse($("#tx").value),m=$("#msg");
  if(!qs.length){m.textContent="No encontré preguntas. Cada una debe empezar con su número y tener las opciones A), B), C) y D) con la correcta marcada.";return}
  S.decks.push({name:$("#nm").value.trim()||"Mazo nuevo",qs});save();
- $("#tx").value="";$("#nm").value="";m.textContent="Mazo guardado con "+qs.length+" preguntas.";home();
+ $("#tx").value="";$("#nm").value="";{const nb=qs.filter(bad).length;m.textContent="Mazo guardado con "+qs.length+" preguntas"+(nb?", "+nb+" por revisar. Toca Editar en el mazo para corregirlas.":".")}home();
 };
 
 let Q=[],i=0,sc=0,run=false,tap=null,rec=null,sp=false,tok=0;
@@ -223,7 +232,7 @@ async function go(){
  }
 }
 function start(d){
- DK=d.qs;Q=prep($("#shuf").checked?shf(DK):DK,false);i=0;sc=0;miss=[];
+ const vq=d.qs.filter(x=>!bad(x));if(!vq.length){$("#hm").textContent="Ese mazo no tiene preguntas completas. Toca Editar para corregirlo.";return}$("#hm").textContent="";DK=vq;Q=prep($("#shuf").checked?shf(DK):DK,false);i=0;sc=0;miss=[];
  $("#home").hidden=true;$("#quiz").hidden=false;
  try{navigator.wakeLock&&navigator.wakeLock.request("screen")}catch(e){}
  ms();const au=$("#sil");au.src=SIL;au.play().catch(()=>{});
@@ -249,6 +258,25 @@ setInterval(()=>{const ps=navigator.getGamepads?navigator.getGamepads():[];
     else{cal=-1;GM=Object.assign({4:"R",5:"S",9:"P"},cm);S.gm=GM;save();$("#gt").textContent="Listo, mando configurado."}}}
    else{dbg("Botón "+k+" del mando");if(GM[k])tapper(GM[k])}}
   gp[key]=b.pressed})}},80);
+let ED=null;
+function bad(x){return !x[0].trim()||x[2]<0||x[1].some(o=>!o.trim())}
+function edit(d){ED=d;$("#home").hidden=true;$("#ed").hidden=false;$("#en").value=d.name;rend()}
+function rend(){const l=$("#el");l.innerHTML="";
+ ED.qs.forEach((x,n)=>{const c=document.createElement("div");c.className="ec";
+  c.innerHTML='<b></b><textarea class="eq" rows="3" style="width:100%;box-sizing:border-box"></textarea><div class="eo"></div><textarea class="es" rows="2" placeholder="Sustento (opcional)" style="width:100%;box-sizing:border-box"></textarea><button class="del">Borrar pregunta</button>';
+  c.querySelector("b").textContent="Pregunta "+(n+1)+(bad(x)?" · por revisar":"");
+  const q=c.querySelector(".eq");q.value=x[0];q.oninput=()=>{x[0]=q.value;save()};
+  const eo=c.querySelector(".eo");
+  for(let k=0;k<4;k++){const r=document.createElement("div");r.className="er";
+   r.innerHTML='<input type="radio" name="r'+n+'"><span>'+L[k]+'</span><input type="text">';
+   const rd=r.children[0],tx=r.children[2];rd.checked=x[2]===k;tx.value=x[1][k]||"";tx.placeholder="Opción "+L[k]+" (marca la correcta)";
+   rd.onchange=()=>{x[2]=k;save()};tx.oninput=()=>{x[1][k]=tx.value;save()};eo.append(r)}
+  const s=c.querySelector(".es");s.value=x[3]||"";s.oninput=()=>{x[3]=s.value;save()};
+  const b=c.querySelector(".del");b.onclick=()=>{if(b.dataset.s){ED.qs.splice(n,1);save();rend()}else{b.dataset.s=1;b.textContent="¿Seguro?"}};
+  l.append(c)})}
+$("#en").oninput=e=>{ED.name=e.target.value;save()};
+$("#ea").onclick=()=>{ED.qs.push(["",["","","",""],-1,""]);save();rend();window.scrollTo(0,document.body.scrollHeight)};
+$("#eok").onclick=()=>{$("#ed").hidden=true;home()};
 home();
 if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script></body></html>
