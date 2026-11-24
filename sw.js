@@ -1,4 +1,5 @@
-const C="vq-v9",F=["./","index.html","manifest.webmanifest"];
-self.addEventListener("install",e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)));self.skipWaiting()});
-self.addEventListener("activate",e=>e.waitUntil(clients.claim()));
-self.addEventListener("fetch",e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))});
+const C="vq-v10",F=["./","index.html","manifest.webmanifest"];
+self.addEventListener("install",e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F.map(u=>new Request(u,{cache:"reload"})))));self.skipWaiting()});
+self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>clients.claim())));
+self.addEventListener("fetch",e=>{if(e.request.method!=="GET")return;
+ e.respondWith(fetch(e.request.url,{cache:"no-cache"}).then(r=>{const c=r.clone();caches.open(C).then(x=>x.put(e.request,c));return r}).catch(()=>caches.match(e.request)))});
