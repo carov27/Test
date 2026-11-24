@@ -49,12 +49,12 @@ input[type=text],textarea{width:100%;box-sizing:border-box;margin:10px 0;padding
 <input type="file" id="fl" accept=".txt,text/plain">
 <p><button id="sv">Guardar mazo</button></p><p id="msg" class="mut"></p>
 </details>
-<p class="mut" style="font-size:.8rem">Versión 11</p>
+<p class="mut" style="font-size:.8rem">Versión 12</p>
 </main>
 <main id="quiz" hidden>
 <div class="top"><span id="pr" class="mut"></span><button id="ex" class="sm">Salir</button></div>
 <p id="qt" class="q"></p><div id="ops"></div><p id="sx" class="mut"></p><p id="st" class="mut" role="status"></p><p id="dbg" class="mut"></p>
-<div class="row"><button id="rp">Repetir</button><button id="sk">Siguiente</button><button id="pz">Pausa</button></div>
+<div class="row"><button id="rp">Repetir</button><button id="sk">Siguiente</button><button id="pz">Pausa</button><button id="mc" class="sm">Reactivar micrófono</button></div>
 </main>
 <main id="ed" hidden>
 <div class="top"><b>Editar mazo</b><button id="eok">Listo</button></div>
@@ -133,7 +133,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function say(t){return new Promise(r=>{
  speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang="es-MX";
  const vs=speechSynthesis.getVoices(),v=vs.find(v=>v.name===S.voice)||vs.find(v=>/^es[-_]MX/.test(v.lang))||vs.find(v=>/^es/.test(v.lang));u.rate=S.rate||1;
- if(v){u.voice=v;u.lang=v.lang}u.onend=u.onerror=()=>r();speechSynthesis.speak(u)})}
+ if(v){u.voice=v;u.lang=v.lang}let d=false,w;const fin=()=>{if(!d){d=true;clearTimeout(w);r()}};w=setTimeout(()=>{speechSynthesis.cancel();fin()},9000+t.length*110);u.onend=u.onerror=fin;speechSynthesis.speak(u)})}
 const dbg=t=>$("#dbg").textContent=t;
 function stopHear(){try{rec&&rec.abort()}catch(e){}}
 function startRec(){
@@ -142,7 +142,7 @@ function startRec(){
  if(rec)return;const r=new SR();rec=r;r.lang="es-MX";r.continuous=true;r.interimResults=true;r.maxAlternatives=3;
  r.onresult=e=>{const x=e.results[e.results.length-1];if(!x.isFinal){dbg("Oyendo: "+x[0].transcript);return}const a=[...x].map(y=>y.transcript);dbg("Escuché: "+a[0]);onHeard(a)};
  r.onerror=e=>{if(e.error==="no-speech"||e.error==="aborted")return;dbg("Micrófono: "+e.error+(/not-allowed/.test(e.error)?". Permite el micrófono y el dictado para Safari en Ajustes.":""))};
- r.onend=()=>{rec=null;if(run)setTimeout(startRec,300)};
+ r.onend=()=>{if(rec===r){rec=null;if(run){dbg("Micrófono reiniciando…");setTimeout(startRec,300)}}};
  try{r.start();dbg("Micrófono activado.")}catch(e){rec=null;dbg("Micrófono: "+e.message)}}
 function onHeard(a){
  const r=intent(a,Q[i]&&Q[i][1]);if(!r||!tap)return;
@@ -206,7 +206,7 @@ async function go(){
     if(!alive())return;i++;await sleep(500);continue}
    let ans=null,t=0,txt=read();
    while(alive()&&!ans&&t<3){
-    st(nm?"Responde con el mando o los botones":"Di «respuesta» y la letra (bravo = B, delta = D) o el contenido de la opción");
+    if(!nm&&!rec)startRec();st(nm?"Responde con el mando o los botones":"Di «respuesta» y la letra (bravo = B, delta = D) o el contenido de la opción");
     const r=await ask(txt,nm?30000:9000);if(!alive())return;
     if(r&&r.length===1&&L.includes(r))ans=r;
     else if(r==="R")txt=read();
@@ -234,12 +234,13 @@ async function go(){
 function start(d){
  const vq=d.qs.filter(x=>!bad(x));if(!vq.length){$("#hm").textContent="Ese mazo no tiene preguntas completas. Toca Editar para corregirlo.";return}$("#hm").textContent="";DK=vq;Q=prep($("#shuf").checked?shf(DK):DK,false);i=0;sc=0;miss=[];
  $("#home").hidden=true;$("#quiz").hidden=false;
- try{navigator.wakeLock&&navigator.wakeLock.request("screen")}catch(e){}
+ try{navigator.wakeLock&&navigator.wakeLock.request("screen").catch(()=>{})}catch(e){}
  ms();const au=$("#sil");au.src=SIL;au.play().catch(()=>{});
  go();
 }
 $("#rp").onclick=()=>tapper("R");$("#sk").onclick=()=>tapper("S");
 $("#pz").onclick=()=>{if(run)pause();else{if(i>=Q.length){Q=prep(shf(DK),true);i=0;sc=0;miss=[]}go()}};
+$("#mc").onclick=()=>{try{rec&&rec.abort()}catch(e){}rec=null;startRec()};
 $("#ex").onclick=()=>{pause();$("#sil").pause();home()};
 function voices(){const sel=$("#vz"),vs=speechSynthesis.getVoices().filter(v=>/^es/.test(v.lang));sel.innerHTML="";
  vs.forEach(v=>{const o=document.createElement("option");o.value=v.name;o.textContent=v.name+" ("+v.lang+")";sel.append(o)});
