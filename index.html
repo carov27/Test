@@ -36,6 +36,7 @@ input[type=text],textarea{width:100%;box-sizing:border-box;margin:10px 0;padding
 <label class="chk"><input type="checkbox" id="shuf" checked> Mezclar el orden de las preguntas</label>
 <label class="chk"><input type="checkbox" id="strict" checked> Exigir la palabra «respuesta» antes de la letra (recomendado si va más gente contigo)</label>
 <label class="chk"><input type="checkbox" id="rep"> Modo sin micrófono (funciona sin internet): lee la pregunta, espera <input type="number" id="sec" value="8" min="3" max="30" style="width:3.5em"> segundos y te dice la respuesta</label>
+<div class="chk">Voz: <select id="vz"></select> <button class="sm" id="vt">Probar</button><br>Velocidad: <input type="range" id="rt" min="0.7" max="1.3" step="0.05" value="1"></div>
 <details><summary>Agregar un mazo</summary>
 <input type="text" id="nm" placeholder="Nombre del mazo">
 <textarea id="tx" rows="8" placeholder="Pega aquí tus preguntas: 1. Pregunta A) … B) … C) … D) … (Correcta)"></textarea>
@@ -48,6 +49,7 @@ input[type=text],textarea{width:100%;box-sizing:border-box;margin:10px 0;padding
 <p id="qt" class="q"></p><div id="ops"></div><p id="st" class="mut" role="status"></p><p id="dbg" class="mut"></p>
 <div class="row"><button id="rp">Repetir</button><button id="sk">Siguiente</button><button id="pz">Pausa</button></div>
 </main>
+<audio id="sil" loop playsinline></audio>
 <script>
 const DEF=[
 ["¿Cuáles son las dos principales causas de pancreatitis aguda?",["Hipercalcemia e hipertrigliceridemia.","Litiasis biliar y consumo excesivo de alcohol.","Traumatismos e infecciones.","Medicamentos y enfermedades autoinmunes."],1],
@@ -66,6 +68,11 @@ const DEF=[
 ["¿Cuál de los siguientes estudios permite identificar mejor las calcificaciones pancreáticas gruesas en pacientes con pancreatitis crónica?",["Radiografía simple de tórax.","Tomografía computarizada de abdomen.","Manometría esofágica.","Colonoscopia."],1],
 ["¿Qué porcentaje aproximado de la función secretora pancreática exocrina debe perderse para que aparezca esteatorrea manifiesta por insuficiencia pancreática?",["25 %.","50 %.","Más del 90 %.","10 %."],2]];
 const $=s=>document.querySelector(s);
+const SIL="data:audio/wav;base64,UklGRsQPAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YaAPAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
+function ms(){if(!("mediaSession"in navigator))return;
+ try{const h=navigator.mediaSession.setActionHandler.bind(navigator.mediaSession);
+ h("nexttrack",()=>tapper("S"));h("previoustrack",()=>tapper("R"));
+ h("pause",()=>{if(run)pause()});h("play",()=>{if(!run)go()})}catch(e){}}
 let S={decks:[]};
 function save(){try{localStorage.setItem("vq",JSON.stringify(S))}catch(e){}}
 try{const x=JSON.parse(localStorage.getItem("vq"));if(x&&x.decks)S=x}catch(e){}
@@ -112,15 +119,15 @@ let Q=[],i=0,sc=0,run=false,tap=null,rec=null,sp=false,tok=0;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function say(t){return new Promise(r=>{
  speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang="es-MX";
- const vs=speechSynthesis.getVoices(),v=vs.find(v=>/^es[-_]MX/.test(v.lang))||vs.find(v=>/^es/.test(v.lang));
- if(v)u.voice=v;u.onend=u.onerror=()=>r();speechSynthesis.speak(u)})}
+ const vs=speechSynthesis.getVoices(),v=vs.find(v=>v.name===S.voice)||vs.find(v=>/^es[-_]MX/.test(v.lang))||vs.find(v=>/^es/.test(v.lang));u.rate=S.rate||1;
+ if(v){u.voice=v;u.lang=v.lang}u.onend=u.onerror=()=>r();speechSynthesis.speak(u)})}
 const dbg=t=>$("#dbg").textContent=t;
 function stopHear(){try{rec&&rec.abort()}catch(e){}}
 function startRec(){
  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
  if(!SR){dbg("Este navegador no tiene reconocimiento de voz. Usa los botones en pantalla.");return}
  if(rec)return;const r=new SR();rec=r;r.lang="es-MX";r.continuous=true;r.interimResults=true;r.maxAlternatives=3;
- r.onresult=e=>{const x=e.results[e.results.length-1];if(!x.isFinal)return;const a=[...x].map(y=>y.transcript);dbg("Escuché: "+a[0]);onHeard(a)};
+ r.onresult=e=>{const x=e.results[e.results.length-1];if(!x.isFinal){dbg("Oyendo: "+x[0].transcript);return}const a=[...x].map(y=>y.transcript);dbg("Escuché: "+a[0]);onHeard(a)};
  r.onerror=e=>{if(e.error==="no-speech"||e.error==="aborted")return;dbg("Micrófono: "+e.error+(/not-allowed/.test(e.error)?". Permite el micrófono y el dictado para Safari en Ajustes.":""))};
  r.onend=()=>{rec=null;if(run)setTimeout(startRec,300)};
  try{r.start();dbg("Micrófono activado.")}catch(e){rec=null;dbg("Micrófono: "+e.message)}}
@@ -151,7 +158,7 @@ function intent(a,o){
   t=t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f.,¿?¡!]/g,"").trim();
   const w=t.split(/\s+/);
   if(w.length<=4){if(/repet|otra vez/.test(t))return "R";if(/siguiente|salta/.test(t))return "S";if(/pausa|detente/.test(t))return "P"}
-  const i=w.findIndex(x=>/^(respuesta|opcion|inciso|letra)$/.test(x));
+  const i=w.findIndex(x=>/^(respuestas?|repuestas?|opcion|inciso|letra)$/.test(x));
   if(strict&&i<0)continue;
   const rest=(i<0?w:w.slice(i+1)).filter(x=>x!=="es"&&x!=="la");
   if(rest.length===1&&LW[rest[0]])return LW[rest[0]];
@@ -159,6 +166,7 @@ function intent(a,o){
  }return null}
 const L="ABCD";
 function show(){
+ try{if(navigator.mediaSession)navigator.mediaSession.metadata=new MediaMetadata({title:"Pregunta "+(i+1)+" de "+Q.length,artist:"Examen por voz"})}catch(e){}
  const [q,o]=Q[i];$("#pr").textContent="Pregunta "+(i+1)+" de "+Q.length+" · Aciertos: "+sc;$("#qt").textContent=q;
  const b=$("#ops");b.innerHTML="";
  o.forEach((x,k)=>{const e=document.createElement("button");e.className="opt";e.textContent=L[k]+") "+x;e.onclick=()=>tapper(L[k]);b.append(e)});
@@ -203,11 +211,19 @@ function start(d){
  Q=[...d.qs];if($("#shuf").checked)Q.sort(()=>Math.random()-.5);i=0;sc=0;
  $("#home").hidden=true;$("#quiz").hidden=false;
  try{navigator.wakeLock&&navigator.wakeLock.request("screen")}catch(e){}
+ ms();const au=$("#sil");au.src=SIL;au.play().catch(()=>{});
  go();
 }
 $("#rp").onclick=()=>tapper("R");$("#sk").onclick=()=>tapper("S");
 $("#pz").onclick=()=>{if(run)pause();else{if(i>=Q.length){i=0;sc=0;Q.sort(()=>Math.random()-.5)}go()}};
-$("#ex").onclick=()=>{pause();home()};
+$("#ex").onclick=()=>{pause();$("#sil").pause();home()};
+function voices(){const sel=$("#vz"),vs=speechSynthesis.getVoices().filter(v=>/^es/.test(v.lang));sel.innerHTML="";
+ vs.forEach(v=>{const o=document.createElement("option");o.value=v.name;o.textContent=v.name+" ("+v.lang+")";sel.append(o)});
+ if(!vs.length)sel.innerHTML="<option>Voz predeterminada</option>";else if(S.voice)sel.value=S.voice}
+speechSynthesis.onvoiceschanged=voices;voices();
+$("#vz").onchange=e=>{S.voice=e.target.value;save()};
+$("#rt").value=S.rate||1;$("#rt").oninput=e=>{S.rate=+e.target.value;save()};
+$("#vt").onclick=()=>say("Pregunta uno. ¿Cuáles son las dos principales causas de pancreatitis aguda?");
 home();
 if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script></body></html>
