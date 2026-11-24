@@ -35,7 +35,9 @@ input[type=text],textarea{width:100%;box-sizing:border-box;margin:10px 0;padding
 <div id="decks"></div>
 <label class="chk"><input type="checkbox" id="shuf" checked> Mezclar el orden de las preguntas</label>
 <label class="chk"><input type="checkbox" id="strict" checked> Exigir la palabra «respuesta» antes de la letra (recomendado si va más gente contigo)</label>
-<label class="chk"><input type="checkbox" id="rep"> Modo sin micrófono (funciona sin internet): lee la pregunta, espera <input type="number" id="sec" value="8" min="3" max="30" style="width:3.5em"> segundos y te dice la respuesta</label>
+<label class="chk"><input type="checkbox" id="rep"> Modo repaso, sin calificar ni micrófono (funciona sin internet): lee la pregunta, espera <input type="number" id="sec" value="8" min="3" max="30" style="width:3.5em"> segundos y te dice la respuesta</label>
+<label class="chk"><input type="checkbox" id="nomic"> Sin micrófono: responder con el mando o los botones</label>
+<label class="chk"><input type="checkbox" id="sus" checked> Leer el sustento en voz alta (si el mazo lo trae)</label>
 <div class="chk">Voz: <select id="vz"></select> <button class="sm" id="vt">Probar</button><br>Velocidad: <input type="range" id="rt" min="0.7" max="1.3" step="0.05" value="1"></div>
 <details><summary>Agregar un mazo</summary>
 <input type="text" id="nm" placeholder="Nombre del mazo">
@@ -46,7 +48,7 @@ input[type=text],textarea{width:100%;box-sizing:border-box;margin:10px 0;padding
 </main>
 <main id="quiz" hidden>
 <div class="top"><span id="pr" class="mut"></span><button id="ex" class="sm">Salir</button></div>
-<p id="qt" class="q"></p><div id="ops"></div><p id="st" class="mut" role="status"></p><p id="dbg" class="mut"></p>
+<p id="qt" class="q"></p><div id="ops"></div><p id="sx" class="mut"></p><p id="st" class="mut" role="status"></p><p id="dbg" class="mut"></p>
 <div class="row"><button id="rp">Repetir</button><button id="sk">Siguiente</button><button id="pz">Pausa</button></div>
 </main>
 <audio id="sil" loop playsinline></audio>
@@ -89,11 +91,11 @@ function home(){
  if(!S.decks.length)l.innerHTML="<p class='mut'>Aún no tienes mazos. Agrega uno abajo.</p>";
 }
 function blk(b){
- let c=-1;const r=/Respuesta correcta:?\s*([A-D])/i.exec(b);
+ let c=-1,sus="";const e=/\s(?:Sustento|Justificaci[oó]n|Explicaci[oó]n):\s*(.*)$/i.exec(b);if(e){sus=e[1].trim();b=b.slice(0,e.index)}const r=/Respuesta correcta:?\s*([A-D])/i.exec(b);
  if(r){c="ABCD".indexOf(r[1].toUpperCase());b=b.replace(r[0],"")}
  const p=b.split(/\s*\b([A-D])\)\s*/);if(p.length<9)return null;
  const o=[];for(let k=1;k<9;k+=2){let x=p[k+1].trim();if(/\(Correcta\)/i.test(x)){c=k>>1;x=x.replace(/\s*\(Correcta\)/i,"").trim()}o.push(x)}
- return c<0?null:[p[0].trim(),o,c];
+ return c<0?null:[p[0].trim(),o,c,sus];
 }
 function parse(t){
  t=" "+t.replace(/\*/g,"").replace(/\s+/g," ").replace(/\s-\s(?=[A-D]\))/g," ");
@@ -164,9 +166,11 @@ function intent(a,o){
   if(rest.length===1&&LW[rest[0]])return LW[rest[0]];
   if(rest.length>=1&&rest.length<=30){const m=match(rest.join(" "),o||[]);if(m)return m}
  }return null}
-const L="ABCD";
+const L="ABCD";let DK=[],miss=[];
+const shf=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(x=>x[1]);
+const prep=(qs,so)=>qs.map(([q,o,c,s])=>{if(!so)return [q,o,c,s];const ix=shf(o.map((_,k)=>k));return [q,ix.map(k=>o[k]),ix.indexOf(c),s]});
 function show(){
- try{if(navigator.mediaSession)navigator.mediaSession.metadata=new MediaMetadata({title:"Pregunta "+(i+1)+" de "+Q.length,artist:"Examen por voz"})}catch(e){}
+ $("#sx").textContent="";try{if(navigator.mediaSession)navigator.mediaSession.metadata=new MediaMetadata({title:"Pregunta "+(i+1)+" de "+Q.length,artist:"Examen por voz"})}catch(e){}
  const [q,o]=Q[i];$("#pr").textContent="Pregunta "+(i+1)+" de "+Q.length+" · Aciertos: "+sc;$("#qt").textContent=q;
  const b=$("#ops");b.innerHTML="";
  o.forEach((x,k)=>{const e=document.createElement("button");e.className="opt";e.textContent=L[k]+") "+x;e.onclick=()=>tapper(L[k]);b.append(e)});
@@ -175,47 +179,56 @@ function mark(c,a){[...$("#ops").children].forEach((e,k)=>{if(k===c)e.classList.
 const st=t=>$("#st").textContent=t;
 function pause(){run=false;tok++;speechSynthesis.cancel();stopHear();$("#pz").textContent="Continuar";st("En pausa.")}
 async function go(){
- const my=++tok;run=true;if(!$("#rep").checked)startRec();$("#pz").textContent="Pausa";
+ const my=++tok;run=true;const rp=$("#rep").checked,nm=$("#nomic").checked;if(!rp&&!nm)startRec();$("#pz").textContent="Pausa";
  const alive=()=>run&&my===tok;
- while(alive()&&i<Q.length){
-  const [q,o,c]=Q[i];show();
-  const read=()=>"Pregunta "+(i+1)+". "+q+" "+o.map((x,k)=>L[k]+": "+x+".").join(" ");
-  const rp=$("#rep").checked,sec=Math.max(3,+$("#sec").value||8);
-  if(rp){
-   let txt=read(),r;
-   do{st("Piensa tu respuesta…");r=await ask(txt,sec*1000);if(!alive())return;txt=read()}while(r==="R");
-   if(r==="P"){pause();return}
-   if(r!=="S"){mark(c,"");st("Respuesta");await say("La respuesta es "+L[c]+": "+o[c]+".")}
-   if(!alive())return;i++;await sleep(500);continue}
-  let ans=null,t=0,txt=read();
-  while(alive()&&!ans&&t<3){
-   st("Di «respuesta» y la letra (bravo = B, delta = D) o el contenido de la opción");const r=await ask(txt);if(!alive())return;
-   if(r&&r.length===1&&L.includes(r))ans=r;
-   else if(r==="R")txt=read();
-   else if(r==="S")ans="S";
-   else if(r==="P"){pause();return}
-   else{t++;txt="No te entendí. Di respuesta y la letra, o el contenido de la opción."}
+ while(alive()){
+  while(alive()&&i<Q.length){
+   const [q,o,c,s]=Q[i];show();
+   const read=()=>"Pregunta "+(i+1)+". "+q+" "+o.map((x,k)=>L[k]+": "+x+".").join(" ");
+   const sec=Math.max(3,+$("#sec").value||8);
+   const rv=async pre=>{$("#sx").textContent=s?"Sustento: "+s:"";await say(pre+"La respuesta es "+L[c]+": "+o[c]+"."+(s&&$("#sus").checked?" Sustento: "+s:""))};
+   if(rp){
+    let txt=read(),r;
+    do{st("Piensa tu respuesta…");r=await ask(txt,sec*1000);if(!alive())return;txt=read()}while(r==="R");
+    if(r==="P"){pause();return}
+    if(r!=="S"){mark(c,"");await rv("")}
+    if(!alive())return;i++;await sleep(500);continue}
+   let ans=null,t=0,txt=read();
+   while(alive()&&!ans&&t<3){
+    st(nm?"Responde con el mando o los botones":"Di «respuesta» y la letra (bravo = B, delta = D) o el contenido de la opción");
+    const r=await ask(txt,nm?30000:9000);if(!alive())return;
+    if(r&&r.length===1&&L.includes(r))ans=r;
+    else if(r==="R")txt=read();
+    else if(r==="S")ans="S";
+    else if(r==="P"){pause();return}
+    else{t++;txt=nm?"Presiona un botón.":"No te entendí. Di respuesta y la letra, o el contenido de la opción."}
+   }
+   if(!alive())return;
+   if(ans==="S")miss.push(Q[i]);
+   else if(ans){const ok=L.indexOf(ans)===c;if(ok)sc++;else miss.push(Q[i]);mark(c,ans);await rv(ok?"Correcto. ":"Incorrecto. ")}
+   else{miss.push(Q[i]);mark(c,"");await rv("")}
+   if(!alive())return;
+   i++;await sleep(500);
   }
   if(!alive())return;
-  if(ans==="S"){}
-  else if(ans){const ok=L.indexOf(ans)===c;if(ok)sc++;mark(c,ans);
-   await say(ok?"Correcto.":"Incorrecto. La respuesta era "+L[c]+": "+o[c]+".")}
-  else{mark(c,"");await say("La respuesta era "+L[c]+": "+o[c]+".")}
-  if(!alive())return;
-  i++;await sleep(500);
+  const m=rp?"Terminaste el mazo.":"Ronda terminada. Acertaste "+sc+" de "+Q.length+".";
+  $("#ops").innerHTML="";$("#sx").textContent="";$("#pr").textContent="";
+  if(!rp&&miss.length){const f=miss.length;$("#qt").textContent=m+" Repasamos "+f+" que fallaste.";
+   await say(m+" Ahora repasamos "+f+(f===1?" pregunta que fallaste.":" preguntas que fallaste."));if(!alive())return;
+   Q=prep(shf(miss),true);miss=[];i=0;sc=0;continue}
+  run=false;stopHear();const fm=rp?m:m+" No te quedan preguntas por repasar.";
+  $("#qt").textContent=fm;st("");$("#pz").textContent="Repetir mazo";await say(fm);return
  }
- if(alive()){run=false;stopHear();const m="Terminaste. Acertaste "+sc+" de "+Q.length+".";
-  $("#qt").textContent=m;$("#ops").innerHTML="";$("#pr").textContent="";st("");$("#pz").textContent="Repetir mazo";await say(m)}
 }
 function start(d){
- Q=[...d.qs];if($("#shuf").checked)Q.sort(()=>Math.random()-.5);i=0;sc=0;
+ DK=d.qs;Q=prep($("#shuf").checked?shf(DK):DK,false);i=0;sc=0;miss=[];
  $("#home").hidden=true;$("#quiz").hidden=false;
  try{navigator.wakeLock&&navigator.wakeLock.request("screen")}catch(e){}
  ms();const au=$("#sil");au.src=SIL;au.play().catch(()=>{});
  go();
 }
 $("#rp").onclick=()=>tapper("R");$("#sk").onclick=()=>tapper("S");
-$("#pz").onclick=()=>{if(run)pause();else{if(i>=Q.length){i=0;sc=0;Q.sort(()=>Math.random()-.5)}go()}};
+$("#pz").onclick=()=>{if(run)pause();else{if(i>=Q.length){Q=prep(shf(DK),true);i=0;sc=0;miss=[]}go()}};
 $("#ex").onclick=()=>{pause();$("#sil").pause();home()};
 function voices(){const sel=$("#vz"),vs=speechSynthesis.getVoices().filter(v=>/^es/.test(v.lang));sel.innerHTML="";
  vs.forEach(v=>{const o=document.createElement("option");o.value=v.name;o.textContent=v.name+" ("+v.lang+")";sel.append(o)});
@@ -224,6 +237,9 @@ speechSynthesis.onvoiceschanged=voices;voices();
 $("#vz").onchange=e=>{S.voice=e.target.value;save()};
 $("#rt").value=S.rate||1;$("#rt").oninput=e=>{S.rate=+e.target.value;save()};
 $("#vt").onclick=()=>say("Pregunta uno. ¿Cuáles son las dos principales causas de pancreatitis aguda?");
+const GM={0:"A",1:"B",2:"C",3:"D",4:"R",5:"S",9:"P"},gp={};
+setInterval(()=>{const ps=navigator.getGamepads?navigator.getGamepads():[];
+ for(const p of ps){if(!p)continue;p.buttons.forEach((b,k)=>{const key=p.index+"-"+k;if(b.pressed&&!gp[key]){dbg("Botón "+k+" del mando");if(GM[k])tapper(GM[k])}gp[key]=b.pressed})}},80);
 home();
 if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script></body></html>
