@@ -39,6 +39,7 @@ input[type=text],textarea{width:100%;box-sizing:border-box;margin:10px 0;padding
 <label class="chk"><input type="checkbox" id="nomic"> Sin micrófono: responder con el mando o los botones</label>
 <label class="chk"><input type="checkbox" id="sus" checked> Leer el sustento en voz alta (si el mazo lo trae)</label>
 <div class="chk">Voz: <select id="vz"></select> <button class="sm" id="vt">Probar</button><br>Velocidad: <input type="range" id="rt" min="0.7" max="1.3" step="0.05" value="1"></div>
+<div class="chk">Mando: <button class="sm" id="gc">Configurar botones A, B, X, Y</button> <span id="gt" class="mut"></span></div>
 <details><summary>Agregar un mazo</summary>
 <input type="text" id="nm" placeholder="Nombre del mazo">
 <textarea id="tx" rows="8" placeholder="Pega aquí tus preguntas: 1. Pregunta A) … B) … C) … D) … (Correcta)"></textarea>
@@ -237,9 +238,16 @@ speechSynthesis.onvoiceschanged=voices;voices();
 $("#vz").onchange=e=>{S.voice=e.target.value;save()};
 $("#rt").value=S.rate||1;$("#rt").oninput=e=>{S.rate=+e.target.value;save()};
 $("#vt").onclick=()=>say("Pregunta uno. ¿Cuáles son las dos principales causas de pancreatitis aguda?");
-const GM={0:"A",1:"B",2:"C",3:"D",4:"R",5:"S",9:"P"},gp={};
+const GD={0:"A",1:"B",2:"C",3:"D",4:"R",5:"S",9:"P"},gp={},CN=["A","B","X","Y"];let GM=S.gm||GD,cal=-1,cm={};
+$("#gc").onclick=()=>{cal=0;cm={};$("#gt").textContent="Presiona el botón "+CN[0]+" del mando…"};
 setInterval(()=>{const ps=navigator.getGamepads?navigator.getGamepads():[];
- for(const p of ps){if(!p)continue;p.buttons.forEach((b,k)=>{const key=p.index+"-"+k;if(b.pressed&&!gp[key]){dbg("Botón "+k+" del mando");if(GM[k])tapper(GM[k])}gp[key]=b.pressed})}},80);
+ for(const p of ps){if(!p)continue;p.buttons.forEach((b,k)=>{const key=p.index+"-"+k;
+  if(b.pressed&&!gp[key]){
+   if(cal>=0){if(!(k in cm)){cm[k]="ABCD"[cal];cal++;
+    if(cal<4)$("#gt").textContent="Ahora el botón "+CN[cal]+"…";
+    else{cal=-1;GM=Object.assign({4:"R",5:"S",9:"P"},cm);S.gm=GM;save();$("#gt").textContent="Listo, mando configurado."}}}
+   else{dbg("Botón "+k+" del mando");if(GM[k])tapper(GM[k])}}
+  gp[key]=b.pressed})}},80);
 home();
 if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script></body></html>
